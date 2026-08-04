@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRB Automotive — 표면온도 측정 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; background: #F4F4F5; color: #1a1a1a; min-height: 100vh; }
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 172px; flex-shrink: 0; background: #fff; border-right: 1px solid #E4E4E7; padding: 1.25rem 0.85rem; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.brand { font-size: 15px; font-weight: 700; color: #1a1a1a; margin-bottom: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid #E4E4E7; }
+.brand span { color: #C0392B; }
+.section-label { font-size: 10px; color: #9CA3AF; padding: 6px 4px 2px; letter-spacing: 0.06em; text-transform: uppercase; }
+.nav-btn { padding: 7px 10px; border-radius: 7px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; text-align: left; width: 100%; transition: background 0.12s; }
+.nav-btn.active-type { background: #C0392B; color: #fff; }
+.nav-btn:not(.active-type) { background: transparent; color: #6B7280; }
+.nav-btn:not(.active-type):hover { background: #F4F4F5; }
+.nav-btn.setting-btn.active-type { background: #1A5276; }
+.nav-btn.manage-btn.active-type { background: #27AE60; }
+.divider { height: 1px; background: #E4E4E7; margin: 6px 0; }
+.month-btn { padding: 6px 10px; border-radius: 7px; font-size: 11px; cursor: pointer; border: none; text-align: left; width: 100%; transition: background 0.12s; }
+.month-btn.active-month { background: #FEF2F2; color: #C0392B; font-weight: 600; border-left: 2px solid #C0392B; border-radius: 0 7px 7px 0; padding-left: 8px; }
+.month-btn.active-month.setting { background: #EAF2F8; color: #1A5276; border-left-color: #1A5276; }
+.month-btn:not(.active-month) { background: transparent; color: #6B7280; }
+.month-btn:not(.active-month):hover { background: #F4F4F5; }
+.main { flex: 1; padding: 1.25rem; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.top-bar { display: flex; align-items: center; justify-content: space-between; }
+.top-bar h1 { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+.date-badge { font-size: 11px; color: #6B7280; background: #fff; padding: 4px 10px; border-radius: 6px; border: 1px solid #E4E4E7; }
+.stats-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.stat { background: #fff; border: 1px solid #E4E4E7; border-radius: 8px; padding: 0.65rem 0.75rem; }
+.stat-label { font-size: 10px; color: #9CA3AF; margin-bottom: 3px; }
+.stat-value { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+.stat-sub { font-size: 9px; color: #B0B8C1; margin-top: 2px; }
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chart-card { background: #fff; border: 1px solid #E4E4E7; border-radius: 10px; padding: 1rem 1.1rem 0.5rem; }
+.chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+.chart-title { font-size: 12px; font-weight: 600; color: #374151; }
+.legend { display: flex; gap: 10px; font-size: 10px; color: #6B7280; flex-wrap: wrap; }
+.legend span { display: flex; align-items: center; gap: 4px; }
+.leg-solid { width: 14px; height: 2px; display: inline-block; border-radius: 1px; }
+.leg-dash  { width: 14px; height: 0; display: inline-block; border-top: 2px dashed; }
+.chart-wrap { position: relative; height: 200px; }
+.change-bar { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 2px 4px; min-height: 28px; border-top: 0.5px solid #F0F0F0; margin-top: 4px; }
+.change-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; white-space: nowrap; }
+.change-tag.up   { background: #FDEDEC; color: #C0392B; border: 1px solid #F1948A; }
+.change-tag.down { background: #EBF5FB; color: #1A5276; border: 1px solid #85C1E9; }
+.change-tag.change { background: #FEF9EC; color: #856404; border: 1px solid #F5C842; }
+.setting-wrap { display: flex; flex-direction: column; gap: 16px; }
+.setting-card { background: #fff; border: 1px solid #E4E4E7; border-radius: 10px; overflow: hidden; }
+.setting-card-header { background: #1A5276; color: #fff; padding: 10px 16px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.setting-card-header .sub { font-size: 11px; font-weight: 400; opacity: 0.8; }
+.setting-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.setting-table th { background: #2C3E50; color: #fff; padding: 8px 12px; text-align: center; font-weight: 500; white-space: nowrap; }
+.setting-table th.machine { background: #1A5276; font-size: 11px; }
+.setting-table td { padding: 7px 12px; border-bottom: 0.5px solid #E4E4E7; color: #374151; }
+.setting-table td.label { font-weight: 600; color: #1A5276; background: #EAF2F8; white-space: nowrap; min-width: 90px; }
+.setting-table td.sublabel { color: #6B7280; background: #F8FAFB; padding-left: 20px; }
+.setting-table tr:last-child td { border-bottom: none; }
+.setting-table tr:hover td { background: #F8FAFB; }
+.setting-table tr:hover td.label { background: #D6EAF8; }
+.note { font-size: 10px; color: #E67E22; margin-top: 2px; }
+
+/* 관리 탭 공통 */
+.manage-wrap { display: flex; flex-direction: column; gap: 14px; }
+.manage-tabs { display: flex; gap: 8px; border-bottom: 1px solid #E4E4E7; padding-bottom: 10px; }
+.mtab { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #E4E4E7; background: #fff; color: #6B7280; transition: all 0.12s; }
+.mtab.active { background: #27AE60; color: #fff; border-color: #27AE60; }
+.mtab:hover:not(.active) { background: #F4F4F5; }
+.manage-panel { display: none; flex-direction: column; gap: 12px; }
+.manage-panel.active { display: flex; }
+.panel-card { background: #fff; border: 1px solid #E4E4E7; border-radius: 10px; overflow: hidden; }
+.panel-header { padding: 10px 16px; font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; justify-content: space-between; }
+.panel-header.green { background: #27AE60; }
+.panel-header.blue  { background: #1A5276; }
+.panel-header.red   { background: #C0392B; }
+.panel-body { padding: 1.1rem; display: flex; flex-direction: column; gap: 10px; }
+
+/* 폼 공통 */
+.form-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.form-row label { font-size: 11px; font-weight: 600; color: #374151; min-width: 80px; }
+.form-row input, .form-row select, .form-row textarea {
+  padding: 6px 10px; border: 1px solid #E4E4E7; border-radius: 6px; font-size: 12px; font-family: inherit;
+}
+.form-row input:focus, .form-row select:focus { outline: none; border-color: #27AE60; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-section { display: flex; flex-direction: column; gap: 8px; }
+.form-section-title { font-size: 11px; font-weight: 700; color: #fff; padding: 4px 10px; border-radius: 5px; text-align: center; }
+.fs-solid { background: #2C3E8C; }
+.fs-sponge { background: #27AE60; }
+.inp-row { display: flex; align-items: center; gap: 8px; }
+.inp-row label { font-size: 11px; color: #6B7280; min-width: 65px; text-align: right; }
+.inp-row input { padding: 5px 8px; border: 1px solid #E4E4E7; border-radius: 5px; font-size: 12px; width: 85px; text-align: center; }
+.inp-row input:focus { outline: none; border-color: #C0392B; }
+
+/* 버튼 */
+.btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn { padding: 7px 18px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.btn-green  { background: #27AE60; color: #fff; }
+.btn-green:hover { background: #1E8449; }
+.btn-blue   { background: #1A5276; color: #fff; }
+.btn-blue:hover { background: #154360; }
+.btn-red    { background: #C0392B; color: #fff; }
+.btn-red:hover { background: #A93226; }
+.btn-gray   { background: #F4F4F5; color: #6B7280; border: 1px solid #E4E4E7; }
+.btn-gray:hover { background: #E4E4E7; }
+.btn-sm { padding: 4px 10px; font-size: 11px; border: none; border-radius: 5px; cursor: pointer; font-weight: 500; }
+.btn-sm.edit { background: #EBF5FB; color: #1A5276; }
+.btn-sm.del  { background: #FDEDEC; color: #C0392B; }
+.btn-sm.edit:hover { background: #D6EAF8; }
+.btn-sm.del:hover  { background: #FADBD8; }
+
+/* 로그 */
+.log-box { background: #F8FAFB; border: 1px solid #E4E4E7; border-radius: 6px; padding: 8px 12px; font-size: 11px; min-height: 36px; color: #6B7280; }
+.log-box.ok  { color: #16A34A; background: #F0FFF4; border-color: #BBF7D0; }
+.log-box.err { color: #C0392B; background: #FFF5F5; border-color: #FECACA; }
+
+/* 데이터 목록 테이블 */
+.data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.data-table th { background: #2C3E50; color: #fff; padding: 6px 8px; text-align: center; }
+.data-table td { padding: 5px 8px; border-bottom: 0.5px solid #E4E4E7; text-align: center; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: #F8FAFB; }
+.data-table-wrap { max-height: 280px; overflow-y: auto; border: 1px solid #E4E4E7; border-radius: 6px; }
+
+/* 셋팅 입력 폼 */
+.setting-input-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.setting-input-table th { background: #2C3E50; color: #fff; padding: 6px 10px; text-align: center; }
+.setting-input-table td { padding: 5px 8px; border-bottom: 0.5px solid #E4E4E7; }
+.setting-input-table td.slabel { font-weight: 600; color: #1A5276; background: #EAF2F8; }
+.setting-input-table td.ssub { color: #6B7280; background: #F8FAFB; padding-left: 14px; font-size: 11px; }
+.setting-input-table input[type=text] { width: 100%; padding: 4px 6px; border: 1px solid #E4E4E7; border-radius: 4px; font-size: 11px; }
+.setting-input-table input[type=text]:focus { outline: none; border-color: #1A5276; }
+
+@media (max-width: 900px) { .stats-row { grid-template-columns: repeat(4,1fr); } .charts-grid { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand"><span>DRB</span> Automotive</div>
+    <div class="section-label">공정 선택</div>
+    <button class="nav-btn active-type" onclick="setType('solid',this)">솔리드 공정온도</button>
+    <button class="nav-btn" onclick="setType('sponge',this)">스펀지 공정온도</button>
+    <button class="nav-btn setting-btn" onclick="setType('setting',this)">온도 셋팅조건</button>
+    <button class="nav-btn manage-btn" onclick="setType('manage',this)">📝 데이터 관리</button>
+    <div class="divider"></div>
+    <div class="section-label">기간 선택</div>
+    <div id="month-btns"></div>
+  </aside>
+  <main class="main">
+    <div class="top-bar">
+      <h1 id="tab-title">솔리드부 표면온도 — 전체 현황</h1>
+      <span class="date-badge" id="date-badge">02/05 ~ 07/27 (47회 측정)</span>
+    </div>
+    <div id="stats-row" class="stats-row"></div>
+    <div id="main-content"></div>
+  </main>
+</div>
+
+<script>
+Chart.register(ChartDataLabels);
+
+/* ── 측정 데이터 ── */
+const ALL_DATES  = ["02/05","02/05","02/10","02/20","03/16","03/25","03/30","04/07","04/09","04/13","04/15","04/16","04/20","04/21","04/23","04/24","04/27","04/28","04/29","04/30","05/14","05/15","05/19","05/20","05/21","05/26","05/27","05/28","06/02","06/16","06/22","06/23","06/24","06/25","06/26","06/29","06/30","07/01","07/06","07/07","07/08","07/09","07/13","07/15","07/16","07/21","07/27"];
+const ALL_MONTHS = [2,2,2,2,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,7,7,7,7,7,7,7,7,7,7];
+const RAW = {
+  solid:{
+    head: [104.8,104.8,103.8,103.4,107.6,106.3,110.5,111.0,109.2,109.8,110.5,111.6,111.0,111.0,109.5,107.6,109.5,109.4,110.9,110.3,114.9,111.9,110.3,110.4,109.8,108.1,108.7,108.7,109.6,106.8,106.5,109.1,105.1,104.1,104.7,99.7,99.0,97.7,96.9,98.7,94.5,97.6,97.6,96.0,99.1,100.2,100.7],
+    soven:[156.5,156.5,155.9,158.2,150.4,160.9,163.7,162.2,165.6,160.2,168.2,167.5,165.8,163.9,165.4,168.2,170.0,167.2,165.2,167.8,170.7,171.6,168.2,164.7,164.2,166.4,162.3,167.7,162.2,166.8,165.1,166.7,165.6,161.7,163.5,152.7,156.8,156.4,152.9,158.4,156.9,154.3,158.1,155.0,159.0,162.0,163.4],
+    uhf:  [172.1,172.1,172.5,171.5,177.9,181.5,172.3,171.7,180.0,168.9,174.5,174.1,171.2,176.1,177.3,176.8,173.3,178.2,179.8,180.4,182.0,172.1,178.1,183.6,173.4,175.7,173.3,177.7,174.4,167.7,178.0,176.8,179.1,170.5,172.4,178.1,168.1,167.1,169.1,173.5,170.6,167.9,168.5,169.1,171.7,171.9,170.0],
+    hat1: [177.7,177.7,180.6,182.3,181.7,182.7,176.0,177.4,191.1,192.1,193.2,193.8,193.0,193.6,193.2,194.8,191.0,194.4,194.3,196.2,197.5,195.0,193.5,195.2,185.6,193.9,180.5,191.0,190.2,192.8,193.8,194.8,193.8,192.5,194.0,190.4,189.2,188.8,187.1,190.7,188.0,186.6,189.9,189.0,191.5,188.7,190.2],
+    hat2: [194.4,194.4,194.0,190.4,201.9,195.7,194.5,191.8,186.4,188.4,191.6,192.0,188.0,190.7,188.5,190.0,185.0,192.6,193.3,189.0,195.1,186.1,186.6,191.2,188.4,187.9,182.5,185.8,188.8,186.9,193.1,190.7,192.9,192.5,189.7,190.3,186.4,187.1,190.8,192.1,188.4,191.2,196.0,192.0,196.7,192.8,193.0],
+    hat3: [209.8,204.0,203.9,204.4,208.3,203.4,211.2,206.2,200.4,204.0,211.3,205.5,207.0,202.4,206.6,201.0,205.0,203.7,203.2,202.0,206.5,202.2,198.0,198.0,198.5,198.2,200.3,198.6,194.7,194.8,200.7,204.0,202.3,203.9,204.7,202.3,202.0,201.9,200.6,208.2,204.3,204.0,207.8,206.0,204.0,208.0,208.6],
+    hat4: [213.1,207.7,208.5,210.1,213.7,210.8,216.0,217.0,209.3,213.2,218.5,215.6,209.0,208.0,209.0,216.0,219.0,214.4,213.3,215.4,217.1,208.7,211.6,210.5,206.4,209.1,209.4,208.2,207.3,217.4,216.0,211.7,212.2,215.5,214.4,217.4,216.4,217.0,215.0,217.9,212.0,214.5,218.1,214.0,215.9,215.2,214.0],
+  },
+  sponge:{
+    head: [74.6,74.6,76.0,70.5,81.9,78.7,83.2,82.4,83.9,84.2,85.7,83.8,86.6,86.5,83.8,82.9,85.2,79.4,81.2,81.3,87.2,81.3,82.3,83.8,82.3,77.1,81.9,83.7,79.9,76.4,77.5,78.0,76.8,74.8,73.0,75.2,73.8,75.0,73.6,76.0,74.2,75.5,76.3,75.0,77.5,78.5,78.6],
+    soven:[139.1,139.1,142.2,144.5,143.3,141.8,144.5,145.6,146.5,145.1,152.8,148.3,144.8,148.0,149.2,148.0,159.6,151.9,146.1,150.0,161.7,152.8,145.7,148.1,153.6,153.7,145.5,147.2,141.3,144.5,139.5,143.6,143.7,147.0,147.4,141.6,139.2,142.5,140.8,142.6,140.0,144.0,142.6,147.9,147.7,148.0,150.4],
+    uhf:  [147.9,147.9,149.7,146.3,137.8,145.8,143.8,145.3,162.5,143.3,152.2,146.8,145.4,143.6,148.3,147.2,140.4,144.2,144.1,144.2,151.7,146.9,149.4,145.6,146.0,143.3,145.1,145.9,137.2,146.0,141.3,142.8,146.5,140.2,147.4,142.4,142.3,143.2,138.0,141.1,142.0,142.0,140.7,141.0,143.0,142.4,143.4],
+    hat1: [174.6,174.6,175.7,175.1,171.2,167.0,163.5,160.5,176.6,185.2,188.1,188.7,186.9,178.1,184.0,185.1,186.4,181.3,180.0,182.0,189.5,180.9,183.1,188.0,181.6,190.7,174.4,189.8,187.0,188.5,185.2,185.4,183.2,184.6,183.0,185.4,186.4,185.0,182.3,187.1,184.0,183.2,188.5,185.6,189.4,185.0,182.7],
+    hat2: [199.6,199.6,195.1,196.4,209.7,204.7,204.4,195.6,187.8,189.8,195.0,195.9,192.5,192.8,184.6,193.1,195.3,193.1,190.9,192.6,199.3,188.0,193.6,196.0,196.5,194.6,194.4,196.3,197.0,190.4,201.5,198.6,199.0,196.7,193.9,198.1,197.1,194.0,194.6,202.9,200.7,203.5,209.0,205.0,209.0,200.4,198.4],
+    hat3: [226.1,215.4,217.0,216.6,220.7,218.3,227.2,207.1,209.3,219.3,223.0,220.5,213.0,214.6,217.2,215.7,216.0,216.5,217.3,215.0,219.3,214.5,212.1,208.0,210.1,212.4,212.3,211.0,212.1,214.8,216.4,221.7,219.9,221.2,221.0,221.9,219.6,210.8,219.6,227.5,222.3,221.0,224.3,219.0,220.0,228.0,224.7],
+    hat4: [224.2,223.2,223.8,223.1,229.7,227.1,232.1,229.3,222.8,229.4,234.3,232.9,230.0,227.4,227.8,228.0,224.7,233.5,230.8,229.7,232.2,224.6,227.2,228.6,222.7,221.4,224.7,228.0,221.1,222.3,235.1,241.8,242.1,237.1,230.5,238.1,239.0,236.3,234.0,236.7,233.6,233.3,236.2,234.0,236.7,232.0,232.5],
+  }
+};
+
+/* ── 변동점 ── */
+let CHANGES = [
+  {date:'02/05',nearDate:'02/05',label:'HAT #2,3,4  -10℃',dir:'down'},
+  {date:'04/01',nearDate:'04/07',label:'HAT #1  +10℃',dir:'up'},
+  {date:'06/19',nearDate:'06/22',label:'헤드·110Φ 실린더/스크류 -5℃ (3호기)',dir:'down'},
+  {date:'06/22',nearDate:'06/22',label:'HAT #2,3,4  +10℃',dir:'up'},
+  {date:'06/29',nearDate:'06/29',label:'110Φ 스크류 교체',dir:'change'},
+  {date:'07/27',nearDate:'07/27',label:'90Φ 스크류 교체 (스펀지)',dir:'change'},
+];
+
+/* ── 셋팅조건 ── */
+let SETTING = {
+  '1월':{machines:['압출 3호 (SX2)','압출 5호 (LX3)'],sections:[{label:'압출조건',sub:'헤드',values:['50℃','45℃']},{label:'110Φ',sub:'실린더1~3',values:['50℃','45℃']},{label:'110Φ',sub:'스크류',values:['50℃','45℃']},{label:'90Φ',sub:'실린더1~3',values:['45℃','//']},{label:'90Φ',sub:'스크류',values:['45℃','//']},{label:'S.Oven',sub:'#1~3',values:['50%, 50%, 50%','//']},{label:'S.Oven',sub:'#4~6',values:['50%, 50%, 80%','90%, 90%, 90%']},{label:'S.Oven',sub:'#7~8',values:['80%, 80%','50%, 50%, 50%']},{label:'UHF',sub:'마그네트론 #1~4',values:['47~48%','60%']},{label:'UHF',sub:'마그네트론 #5~6',values:['47%','-']},{label:'UHF',sub:'온도',values:['210℃','260℃']},{label:'HAT',sub:'HAT1',values:['240℃','270℃']},{label:'HAT',sub:'HAT2',values:['260℃','280℃']},{label:'HAT',sub:'HAT3',values:['260℃','280℃']},{label:'HAT',sub:'HAT4',values:['270℃','280℃']},{label:'냉각',sub:'',values:['9.3℃','9.4℃']}],notes:[]},
+  '2월':{machines:['압출 3호 (SX2)','압출 5호 (LX3)'],sections:[{label:'압출조건',sub:'헤드',values:['50℃','45℃']},{label:'110Φ',sub:'실린더1~3',values:['50℃','45℃']},{label:'110Φ',sub:'스크류',values:['50℃','45℃']},{label:'90Φ',sub:'실린더1~3',values:['45℃','//']},{label:'90Φ',sub:'스크류',values:['45℃','//']},{label:'S.Oven',sub:'#1~3',values:['50%, 50%, 50%','//']},{label:'S.Oven',sub:'#4~6',values:['50%, 50%, 80%','90%, 90%, 90%']},{label:'S.Oven',sub:'#7~8',values:['80%, 80%','50%, 50%, 50%']},{label:'UHF',sub:'마그네트론 #1~4',values:['70%','45%']},{label:'UHF',sub:'마그네트론 #5~6',values:['70%','-']},{label:'UHF',sub:'온도',values:['210℃','260℃']},{label:'HAT',sub:'HAT1',values:['240℃','270℃']},{label:'HAT',sub:'HAT2',values:['260℃','280℃']},{label:'HAT',sub:'HAT3',values:['260℃','280℃']},{label:'HAT',sub:'HAT4',values:['270℃','280℃']},{label:'냉각',sub:'',values:['10℃','10℃']}],notes:['HAT #1: -10℃ 변경 테스트']},
+  '3월':{machines:['압출 3호 (SX2)','압출 5호 (LX3)'],sections:[{label:'압출조건',sub:'헤드',values:['50℃','45℃']},{label:'110Φ',sub:'실린더1~3',values:['50℃','45℃']},{label:'110Φ',sub:'스크류',values:['50℃','45℃']},{label:'90Φ',sub:'실린더1~3',values:['45℃','//']},{label:'90Φ',sub:'스크류',values:['45℃','//']},{label:'S.Oven',sub:'#1~3',values:['50%, 50%, 50%','//']},{label:'S.Oven',sub:'#4~6',values:['50%, 80%, 80%','90%, 90%, 90%']},{label:'S.Oven',sub:'#7~8',values:['80%, 80%','50%, 50%, 50%']},{label:'UHF',sub:'마그네트론 #1~4',values:['60%','45%']},{label:'UHF',sub:'마그네트론 #5~6',values:['60%','-']},{label:'UHF',sub:'온도',values:['200℃','260℃']},{label:'HAT',sub:'HAT1',values:['220℃','270℃']},{label:'HAT',sub:'HAT2',values:['250℃','280℃']},{label:'HAT',sub:'HAT3',values:['250℃','280℃']},{label:'HAT',sub:'HAT4',values:['260℃','280℃']},{label:'냉각',sub:'',values:['10℃','10℃']}],notes:['HAT #2,3,4: -10℃ 변경 테스트','3/27 튜브 바닥부 기포 발생']},
+  '4월':{machines:['압출 3호 (SX2)','압출 5호 (LX3, RG3)','압출 6호 (JW1, DL3)'],sections:[{label:'압출조건',sub:'헤드',values:['50℃','45℃','55℃']},{label:'110Φ',sub:'실린더1~3',values:['50℃','45℃','45℃']},{label:'110Φ',sub:'스크류',values:['50℃','45℃','45℃']},{label:'90Φ',sub:'실린더1~3',values:['45℃','//','//']},{label:'90Φ',sub:'스크류',values:['45℃','//','//']},{label:'S.Oven',sub:'#1~3',values:['50%, 50%, 50%','//','//']},{label:'S.Oven',sub:'#4~6',values:['50%, 80%, 80%','98%, 20%, 98%','50%, 60%, 60%']},{label:'S.Oven',sub:'#7~8',values:['80%, 80%','50%, 50%, 50%','50%, 50%, 50%']},{label:'UHF',sub:'마그네트론 #1~4',values:['60%','45%','55%']},{label:'UHF',sub:'마그네트론 #5~6',values:['60%','-','-']},{label:'UHF',sub:'온도',values:['210℃','260℃','250℃']},{label:'HAT',sub:'HAT1',values:['230℃','260℃','240℃']},{label:'HAT',sub:'HAT2',values:['250℃','270℃','240℃']},{label:'HAT',sub:'HAT3',values:['250℃','280℃','250℃']},{label:'HAT',sub:'HAT4',values:['260℃','280℃','250℃']},{label:'냉각',sub:'',values:['10℃','10℃','10℃']}],notes:['3호기 HAT #1 +10℃','5호기 HAT #2,3 -10℃']},
+  '5월':{machines:['압출 3호 (SX2)','압출 5호 (LX3, RG3)','압출 6호 (JW1, DL3)'],sections:[{label:'압출조건',sub:'헤드',values:['50℃','45℃','55℃']},{label:'110Φ',sub:'실린더1~3',values:['50℃','45℃','45℃']},{label:'110Φ',sub:'스크류',values:['50℃','45℃','45℃']},{label:'90Φ',sub:'실린더1~3',values:['45℃','//','//']},{label:'90Φ',sub:'스크류',values:['45℃','//','//']},{label:'S.Oven',sub:'#1~3',values:['50%, 50%, 50%','50%, 50%, 50%','//']},{label:'S.Oven',sub:'#4~6',values:['50%, 80%, 80%','98%, 20%, 98%','50%, 60%, 60%']},{label:'S.Oven',sub:'#7~8',values:['80%, 80%','50%, 50%','50%, 50%, 50%']},{label:'UHF',sub:'마그네트론 #1~4',values:['60%','45%','55%']},{label:'UHF',sub:'마그네트론 #5~6',values:['60%','-','-']},{label:'UHF',sub:'온도',values:['210℃','260℃','250℃']},{label:'HAT',sub:'HAT1',values:['230℃','260℃','240℃']},{label:'HAT',sub:'HAT2',values:['250℃','270℃','240℃']},{label:'HAT',sub:'HAT3',values:['250℃','280℃','250℃']},{label:'HAT',sub:'HAT4',values:['260℃','280℃','250℃']},{label:'냉각',sub:'',values:['10℃','10℃','10℃']}],notes:['직수 투입 적용']},
+  '6월':{machines:['압출 3호 (SX2)','압출 5호 (LX3, RG3)','압출 6호 (JW1, DL3)'],sections:[{label:'압출조건',sub:'헤드',values:['45℃','45℃','55℃']},{label:'110Φ',sub:'실린더1~3',values:['45℃','45℃','45℃']},{label:'110Φ',sub:'스크류',values:['45℃','45℃','45℃']},{label:'90Φ',sub:'실린더1~3',values:['40℃','//','//']},{label:'90Φ',sub:'스크류',values:['40℃','//','//']},{label:'S.Oven',sub:'#1~3',values:['50%, 50%, 50%','50%, 50%, 50%','//']},{label:'S.Oven',sub:'#4~6',values:['50%, 80%, 80%','98%, 20%, 98%','50%, 60%, 60%']},{label:'S.Oven',sub:'#7~8',values:['80%, 80%','50%, 50%','50%, 50%, 50%']},{label:'UHF',sub:'마그네트론 #1~4',values:['60%','45%','55%']},{label:'UHF',sub:'마그네트론 #5~6',values:['60%','-','-']},{label:'UHF',sub:'온도',values:['210℃','260℃','250℃']},{label:'HAT',sub:'HAT1',values:['230℃','260℃','240℃']},{label:'HAT',sub:'HAT2',values:['260℃','270℃','240℃']},{label:'HAT',sub:'HAT3',values:['260℃','280℃','250℃']},{label:'HAT',sub:'HAT4',values:['270℃','280℃','250℃']},{label:'냉각',sub:'',values:['10℃','10℃','10℃']}],notes:['6/19 헤드, 110Φ 실린더1~3, 스크류 5℃ 하강 (3호기)','6/22~ HAT #2,3,4 +10℃ 상승','6/29 110Φ 스크류 교체']},
+  '7월':{machines:['압출 3호 (SX2)','압출 5호 (LX3, RG3)','압출 6호 (JW1, DL3)'],sections:[{label:'압출조건',sub:'헤드',values:['45℃','45℃','55℃']},{label:'110Φ',sub:'실린더1~3',values:['45℃','45℃','45℃']},{label:'110Φ',sub:'스크류',values:['45℃','45℃','45℃']},{label:'90Φ',sub:'실린더1~3',values:['40℃','//','//']},{label:'90Φ',sub:'스크류',values:['40℃','//','//']},{label:'S.Oven',sub:'#1~3',values:['50%, 50%, 50%','50%, 50%, 50%','//']},{label:'S.Oven',sub:'#4~6',values:['50%, 80%, 80%','98%, 20%, 98%','50%, 60%, 60%']},{label:'S.Oven',sub:'#7~8',values:['80%, 80%','50%, 50%','50%, 50%, 50%']},{label:'UHF',sub:'마그네트론 #1~4',values:['60%','45%','55%']},{label:'UHF',sub:'마그네트론 #5~6',values:['60%','-','-']},{label:'UHF',sub:'온도',values:['210℃','260℃','250℃']},{label:'HAT',sub:'HAT1',values:['230℃','260℃','240℃']},{label:'HAT',sub:'HAT2',values:['260℃','270℃','240℃']},{label:'HAT',sub:'HAT3',values:['260℃','280℃','250℃']},{label:'HAT',sub:'HAT4',values:['270℃','280℃','250℃']},{label:'냉각',sub:'',values:['10℃','10℃','10℃']}],notes:['6월과 동일 조건 유지','7/27 90Φ 스크류 교체 (스펀지)']},
+};
+
+const SECTION_DEFS = [
+  {label:'압출조건', sub:'헤드'},
+  {label:'110Φ', sub:'실린더1~3'},
+  {label:'110Φ', sub:'스크류'},
+  {label:'90Φ', sub:'실린더1~3'},
+  {label:'90Φ', sub:'스크류'},
+  {label:'S.Oven', sub:'#1~3'},
+  {label:'S.Oven', sub:'#4~6'},
+  {label:'S.Oven', sub:'#7~8'},
+  {label:'UHF', sub:'마그네트론 #1~4'},
+  {label:'UHF', sub:'마그네트론 #5~6'},
+  {label:'UHF', sub:'온도'},
+  {label:'HAT', sub:'HAT1'},
+  {label:'HAT', sub:'HAT2'},
+  {label:'HAT', sub:'HAT3'},
+  {label:'HAT', sub:'HAT4'},
+  {label:'냉각', sub:''},
+];
+
+let SETTING_MONTHS = ['1월','2월','3월','4월','5월','6월','7월'];
+const CHART_DEFS=[
+  {id:'ch1',title:'헤드 표면온도 (°C)',sets:[{label:'헤드',key:'head',color:'#C0392B',dash:[]}]},
+  {id:'ch2',title:'S/OVEN & UHF 공정온도 (°C)',sets:[{label:'S/OVEN',key:'soven',color:'#E67E22',dash:[]},{label:'UHF',key:'uhf',color:'#1ABC9C',dash:[5,3]}]},
+  {id:'ch3',title:'HAT #1 & #2 공정온도 (°C)',sets:[{label:'HAT #1',key:'hat1',color:'#2C3E8C',dash:[]},{label:'HAT #2',key:'hat2',color:'#5B9BD5',dash:[5,3]}]},
+  {id:'ch4',title:'HAT #3 & #4 공정온도 (°C)',sets:[{label:'HAT #3',key:'hat3',color:'#27AE60',dash:[]},{label:'HAT #4',key:'hat4',color:'#8E44AD',dash:[5,3]}]},
+];
+
+let curType='solid', curMonth='all', activeCharts=[], editIdx=-1;
+
+/* ── 유틸 ── */
+function parseDate(str){
+  const s=str.trim();
+  const m=s.match(/(\d{1,2})월\s*(\d{1,2})일/);
+  if(m) return `${String(m[1]).padStart(2,'0')}/${String(m[2]).padStart(2,'0')}`;
+  const m2=s.match(/(\d{1,2})\/(\d{1,2})/);
+  if(m2) return `${String(m2[1]).padStart(2,'0')}/${String(m2[2]).padStart(2,'0')}`;
+  return null;
+}
+function getFiltered(type,month){
+  const indices=month==='all'?ALL_MONTHS.map((_,i)=>i):ALL_MONTHS.map((m,i)=>m===parseInt(month)?i:-1).filter(i=>i>=0);
+  const data={};
+  Object.keys(RAW[type]).forEach(k=>{data[k]=indices.map(i=>RAW[type][k][i]);});
+  return{dates:indices.map(i=>ALL_DATES[i]),data,count:indices.length};
+}
+function avg(a){return a&&a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'-';}
+function minV(a){return a&&a.length?Math.min(...a).toFixed(1):'-';}
+function maxV(a){return a&&a.length?Math.max(...a).toFixed(1):'-';}
+function showLog(id,msg,type=''){const el=document.getElementById(id);if(!el)return;el.textContent=msg;el.className='log-box '+(type||'');}
+
+/* ── 차트 ── */
+function buildStats(data){
+  const keys=['head','soven','uhf','hat1','hat2','hat3','hat4'];
+  const labels=['헤드','S/OVEN','UHF','HAT #1','HAT #2','HAT #3','HAT #4'];
+  document.getElementById('stats-row').innerHTML=keys.map((k,i)=>`
+    <div class="stat"><div class="stat-label">${labels[i]} 평균</div>
+    <div class="stat-value">${avg(data[k])}°C</div>
+    <div class="stat-sub">최저 ${minV(data[k])} / 최고 ${maxV(data[k])}</div></div>`).join('');
+}
+function getChangesForDates(dates){return CHANGES.filter(c=>dates.includes(c.nearDate));}
+function changeBarHTML(dates){
+  const m=getChangesForDates(dates);
+  if(!m.length) return '';
+  return`<div class="change-bar">${m.map(c=>`<span class="change-tag ${c.dir}">${c.dir==='up'?'▲':c.dir==='down'?'▼':'🔧'} ${c.date} ${c.label}</span>`).join('')}</div>`;
+}
+function minMaxIdx(arr){let mi=0,xi=0;arr.forEach((v,i)=>{if(v<arr[mi])mi=i;if(v>arr[xi])xi=i;});return{minI:mi,maxI:xi};}
+function buildCharts(dates,data){
+  activeCharts.forEach(c=>c.destroy());activeCharts=[];
+  const grid=document.getElementById('main-content');
+  grid.className='charts-grid';grid.innerHTML='';
+  CHART_DEFS.forEach(ch=>{
+    const legHTML=ch.sets.map(s=>`<span>${s.dash.length?`<span class="leg-dash" style="border-color:${s.color};"></span>`:`<span class="leg-solid" style="background:${s.color};"></span>`}${s.label}</span>`).join('');
+    grid.innerHTML+=`<div class="chart-card"><div class="chart-header"><span class="chart-title">${ch.title}</span><div class="legend">${legHTML}</div></div><div class="chart-wrap"><canvas id="${ch.id}"></canvas></div>${changeBarHTML(dates)}</div>`;
+  });
+  CHART_DEFS.forEach(ch=>{
+    const allVals=ch.sets.flatMap(s=>data[s.key]||[]);
+    const yMin=Math.floor(Math.min(...allVals)-8),yMax=Math.ceil(Math.max(...allVals)+8);
+    const datasets=ch.sets.map(s=>{
+      const arr=data[s.key]||[];const{minI,maxI}=minMaxIdx(arr);
+      return{label:s.label,data:arr,borderColor:s.color,backgroundColor:'transparent',tension:0.3,
+        pointRadius:arr.map((_,i)=>(i===minI||i===maxI)?5:2.5),
+        pointBackgroundColor:arr.map((_,i)=>(i===minI||i===maxI)?'#fff':s.color),
+        pointBorderColor:s.color,pointBorderWidth:arr.map((_,i)=>(i===minI||i===maxI)?2:0),
+        borderDash:s.dash,borderWidth:2,
+        datalabels:{
+          display:ctx=>{const i=ctx.dataIndex;return i===minI||i===maxI;},
+          formatter:(val,ctx)=>{const i=ctx.dataIndex;return`${i===maxI?'▲':'▼'} ${val.toFixed(1)}`;},
+          color:ctx=>ctx.dataIndex===maxI?'#C0392B':'#2980B9',
+          font:{size:10,weight:'600'},
+          anchor:ctx=>ctx.dataIndex===maxI?'end':'start',
+          align:ctx=>ctx.dataIndex===maxI?'top':'bottom',
+          offset:4,backgroundColor:'rgba(255,255,255,0.85)',borderRadius:3,
+          padding:{top:2,bottom:2,left:4,right:4},
+        }};
+    });
+    const inst=new Chart(document.getElementById(ch.id),{
+      type:'line',data:{labels:dates,datasets},
+      plugins:[{id:'cl',afterDraw(chart){
+        const ctx2=chart.ctx,xs=chart.scales.x,ys=chart.scales.y;
+        CHANGES.forEach(c=>{
+          const idx=dates.indexOf(c.nearDate);if(idx<0)return;
+          const x=xs.getPixelForValue(idx);
+          ctx2.save();ctx2.setLineDash([4,3]);
+          ctx2.strokeStyle=c.dir==='up'?'rgba(192,57,43,0.5)':c.dir==='down'?'rgba(26,82,118,0.5)':'rgba(133,100,4,0.5)';
+          ctx2.lineWidth=1.5;ctx2.beginPath();ctx2.moveTo(x,ys.top);ctx2.lineTo(x,ys.bottom);ctx2.stroke();
+          ctx2.setLineDash([]);ctx2.fillStyle=c.dir==='up'?'#C0392B':c.dir==='down'?'#1A5276':'#856404';
+          ctx2.font='bold 9px sans-serif';ctx2.textAlign='center';
+          ctx2.fillText(c.dir==='up'?'▲':c.dir==='down'?'▼':'🔧',x,ys.top+10);ctx2.restore();
+        });
+      }}],
+      options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:22,bottom:18}},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}°C`}},datalabels:{}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#9CA3AF',maxRotation:45,autoSkip:true,maxTicksLimit:14}},
+          y:{min:yMin,max:yMax,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10},color:'#9CA3AF',callback:v=>v+'°C'}}}}
+    });
+    activeCharts.push(inst);
+  });
+}
+
+/* ── 셋팅조건 뷰 ── */
+function buildSettingTable(month){
+  const d=SETTING[month];
+  if(!d) return`<div style="padding:2rem;color:#9CA3AF;">데이터 없음</div>`;
+  const thM=d.machines.map(m=>`<th class="machine">${m}</th>`).join('');
+  let prev='';
+  const rows=d.sections.map(s=>{
+    const isFirst=s.label!==prev;prev=s.label;
+    const span=d.sections.filter(x=>x.label===s.label).length;
+    const lc=isFirst?`<td class="label" rowspan="${span}">${s.label}</td>`:'';
+    const vc=s.values.map(v=>`<td style="text-align:center;">${v}</td>`).join('');
+    const ec=Array(d.machines.length-s.values.length).fill('<td style="text-align:center;">-</td>').join('');
+    return`<tr>${lc}<td class="sublabel">${s.sub}</td>${vc}${ec}</tr>`;
+  }).join('');
+  const notes=d.notes.length?`<div style="padding:10px 16px;background:#FFFBF0;border-top:1px solid #E4E4E7;">${d.notes.map(n=>`<div class="note">📌 ${n}</div>`).join('')}</div>`:'';
+  return`<div class="setting-card"><div class="setting-card-header">📋 ${month} 온도 셋팅조건 <span class="sub">압출공정 설비 조건</span></div><div style="overflow-x:auto;"><table class="setting-table"><thead><tr><th>구분</th><th>항목</th>${thM}</tr></thead><tbody>${rows}</tbody></table></div>${notes}</div>`;
+}
+function buildSettingView(month){
+  activeCharts.forEach(c=>c.destroy());activeCharts=[];
+  document.getElementById('stats-row').innerHTML='';
+  const content=document.getElementById('main-content');
+  content.className='setting-wrap';
+  content.innerHTML=month==='all'?SETTING_MONTHS.map(m=>buildSettingTable(m)).join(''):buildSettingTable(month+'월');
+}
+
+/* ══════════════════════════════════════
+   📝 데이터 관리 탭
+══════════════════════════════════════ */
+function buildManageView(){
+  activeCharts.forEach(c=>c.destroy());activeCharts=[];
+  document.getElementById('stats-row').innerHTML='';
+  document.getElementById('tab-title').textContent='데이터 관리';
+  document.getElementById('date-badge').textContent='측정데이터 · 셋팅조건 · 변동점 관리';
+  const content=document.getElementById('main-content');
+  content.className='manage-wrap';
+  content.innerHTML=`
+    <div class="manage-tabs">
+      <button class="mtab active" onclick="switchMTab('mdata',this)">📊 측정 데이터</button>
+      <button class="mtab" onclick="switchMTab('msetting',this)">🌡 셋팅조건</button>
+      <button class="mtab" onclick="switchMTab('mchange',this)">🔧 변동점</button>
+    </div>
+    <div id="mdata" class="manage-panel active">${buildDataPanel()}</div>
+    <div id="msetting" class="manage-panel">${buildSettingPanel()}</div>
+    <div id="mchange" class="manage-panel">${buildChangePanel()}</div>
+  `;
+}
+
+function switchMTab(id,btn){
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.manage-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ── 측정 데이터 패널 ── */
+function buildDataPanel(){
+  const keys=['head','soven','uhf','hat1','hat2','hat3','hat4'];
+  const labels=['헤드','S/OVEN','UHF','HAT#1','HAT#2','HAT#3','HAT#4'];
+  const sInputs=keys.map((k,i)=>`<div class="inp-row"><label>${labels[i]}</label><input type="number" id="di-s-${k}" step="0.1" placeholder="0.0"/></div>`).join('');
+  const pInputs=keys.map((k,i)=>`<div class="inp-row"><label>${labels[i]}</label><input type="number" id="di-p-${k}" step="0.1" placeholder="0.0"/></div>`).join('');
+
+  const rows=ALL_DATES.map((d,i)=>`
+    <tr>
+      <td>${d}</td>
+      <td>${RAW.solid.head[i]}</td><td>${RAW.solid.soven[i]}</td><td>${RAW.solid.uhf[i]}</td>
+      <td>${RAW.solid.hat1[i]}</td><td>${RAW.solid.hat2[i]}</td><td>${RAW.solid.hat3[i]}</td><td>${RAW.solid.hat4[i]}</td>
+      <td>${RAW.sponge.head[i]}</td><td>${RAW.sponge.soven[i]}</td><td>${RAW.sponge.uhf[i]}</td>
+      <td>${RAW.sponge.hat1[i]}</td><td>${RAW.sponge.hat2[i]}</td><td>${RAW.sponge.hat3[i]}</td><td>${RAW.sponge.hat4[i]}</td>
+      <td><button class="btn-sm edit" onclick="editDataRow(${i})">✏️</button> <button class="btn-sm del" onclick="delDataRow(${i})">🗑️</button></td>
+    </tr>`).join('');
+
+  return`
+    <div class="panel-card">
+      <div class="panel-header green">➕ 새 데이터 추가 / 수정</div>
+      <div class="panel-body">
+        <div class="form-row"><label>측정일</label><input type="text" id="di-date" placeholder="예: 07월 28일" style="width:140px;"/><span id="di-edit-badge" style="font-size:11px;color:#E67E22;display:none;">✏️ 수정 모드</span></div>
+        <div class="form-grid">
+          <div class="form-section"><div class="form-section-title fs-solid">솔리드부</div>${sInputs}</div>
+          <div class="form-section"><div class="form-section-title fs-sponge">스펀지부</div>${pInputs}</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-gray" onclick="resetDataForm()">초기화</button>
+          <button class="btn btn-green" onclick="saveDataRow()">✓ 저장</button>
+        </div>
+        <div class="log-box" id="di-log">데이터를 입력하고 저장 버튼을 클릭하세요.</div>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-header blue">📋 전체 측정 데이터 목록 (${ALL_DATES.length}회)</div>
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>날짜</th><th>S-헤드</th><th>S-OVEN</th><th>S-UHF</th><th>S-H1</th><th>S-H2</th><th>S-H3</th><th>S-H4</th><th>P-헤드</th><th>P-OVEN</th><th>P-UHF</th><th>P-H1</th><th>P-H2</th><th>P-H3</th><th>P-H4</th><th>관리</th></tr></thead>
+          <tbody id="di-tbody">${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function resetDataForm(){
+  editIdx=-1;
+  const ids=['di-date','di-s-head','di-s-soven','di-s-uhf','di-s-hat1','di-s-hat2','di-s-hat3','di-s-hat4',
+             'di-p-head','di-p-soven','di-p-uhf','di-p-hat1','di-p-hat2','di-p-hat3','di-p-hat4'];
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const badge=document.getElementById('di-edit-badge');
+  if(badge) badge.style.display='none';
+  showLog('di-log','초기화됐어요.');
+}
+
+function editDataRow(i){
+  editIdx=i;
+  const keys=['head','soven','uhf','hat1','hat2','hat3','hat4'];
+  document.getElementById('di-date').value=ALL_DATES[i].replace('/','/');
+  keys.forEach(k=>{
+    const se=document.getElementById('di-s-'+k);
+    const pe=document.getElementById('di-p-'+k);
+    if(se) se.value=RAW.solid[k][i];
+    if(pe) pe.value=RAW.sponge[k][i];
+  });
+  const badge=document.getElementById('di-edit-badge');
+  if(badge) badge.style.display='inline';
+  showLog('di-log',`${ALL_DATES[i]} 데이터를 수정 중이에요. 값 변경 후 저장하세요.`,'');
+  document.getElementById('di-date').scrollIntoView({behavior:'smooth'});
+}
+
+function delDataRow(i){
+  if(!confirm(`${ALL_DATES[i]} 데이터를 삭제할까요?`)) return;
+  ALL_DATES.splice(i,1);
+  ALL_MONTHS.splice(i,1);
+  const keys=['head','soven','uhf','hat1','hat2','hat3','hat4'];
+  keys.forEach(k=>{RAW.solid[k].splice(i,1);RAW.sponge[k].splice(i,1);});
+  rebuildMonthButtons();
+  buildManageView();
+  showLog('di-log',`삭제 완료됐어요.`,'ok');
+}
+
+function saveDataRow(){
+  const keys=['head','soven','uhf','hat1','hat2','hat3','hat4'];
+  const dateStr=(document.getElementById('di-date')||{}).value||'';
+  const dateKey=parseDate(dateStr);
+  if(!dateKey){showLog('di-log','✗ 날짜 형식을 확인해주세요. (예: 07월 28일)','err');return;}
+  const sVals={},pVals={};
+  for(const k of keys){
+    const sv=parseFloat((document.getElementById('di-s-'+k)||{}).value);
+    const pv=parseFloat((document.getElementById('di-p-'+k)||{}).value);
+    if(isNaN(sv)||isNaN(pv)){showLog('di-log',`✗ ${k} 값을 모두 입력해주세요.`,'err');return;}
+    sVals[k]=sv;pVals[k]=pv;
+  }
+  if(editIdx>=0){
+    // 수정
+    ALL_DATES[editIdx]=dateKey;
+    ALL_MONTHS[editIdx]=parseInt(dateKey.split('/')[0]);
+    keys.forEach(k=>{RAW.solid[k][editIdx]=sVals[k];RAW.sponge[k][editIdx]=pVals[k];});
+    showLog('di-log',`✓ ${dateStr} 데이터가 수정됐어요!`,'ok');
+    editIdx=-1;
+  } else {
+    // 추가
+    ALL_DATES.push(dateKey);
+    ALL_MONTHS.push(parseInt(dateKey.split('/')[0]));
+    keys.forEach(k=>{RAW.solid[k].push(sVals[k]);RAW.sponge[k].push(pVals[k]);});
+    showLog('di-log',`✓ ${dateStr} 데이터가 추가됐어요!`,'ok');
+  }
+  rebuildMonthButtons();
+  buildManageView();
+}
+
+/* ── 셋팅조건 패널 ── */
+function buildSettingPanel(){
+  const monthOptions=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
+    .map(m=>`<option value="${m}">${m}</option>`).join('');
+  return`
+    <div class="panel-card">
+      <div class="panel-header blue">🌡 월별 온도 셋팅조건 관리</div>
+      <div class="panel-body">
+        <div class="form-row">
+          <label>월 선택</label>
+          <select id="sp-month" style="width:100px;" onchange="loadSettingMonth()">${monthOptions}</select>
+          <button class="btn btn-gray" onclick="copyPrevMonth()">📋 전월 데이터 가져오기</button>
+          <button class="btn btn-blue" onclick="saveSettingMonth()">✓ 저장</button>
+        </div>
+        <div class="form-row">
+          <label>설비 구성</label>
+          <input type="text" id="sp-machines" placeholder="쉼표로 구분 (예: 압출 3호,압출 5호)" style="width:100%;max-width:400px;"/>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="setting-input-table" id="sp-table">
+            <thead><tr><th>구분</th><th>항목</th><th id="sp-th1">설비1</th><th id="sp-th2">설비2</th><th id="sp-th3">설비3</th></tr></thead>
+            <tbody id="sp-tbody"></tbody>
+          </table>
+        </div>
+        <div class="form-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
+          <label>변동점 / 비고</label>
+          <textarea id="sp-notes" rows="3" placeholder="한 줄에 하나씩 입력&#10;예: 6/22~ HAT #2,3,4 +10℃ 상승" style="width:100%;max-width:500px;border:1px solid #E4E4E7;border-radius:6px;padding:7px 10px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
+        </div>
+        <div class="log-box" id="sp-log">월을 선택하면 해당 셋팅조건을 불러와요.</div>
+      </div>
+    </div>`;
+}
+
+function loadSettingMonth(){
+  const m=document.getElementById('sp-month').value;
+  const d=SETTING[m];
+  if(d){
+    document.getElementById('sp-machines').value=d.machines.join(', ');
+    renderSettingInputTable(d.machines, d.sections);
+    document.getElementById('sp-notes').value=d.notes.join('\n');
+    showLog('sp-log',`${m} 셋팅조건을 불러왔어요.`,'ok');
+  } else {
+    document.getElementById('sp-machines').value='';
+    renderSettingInputTable(['설비1','설비2','설비3'], null);
+    document.getElementById('sp-notes').value='';
+    showLog('sp-log',`${m} 데이터가 없어요. 새로 입력하거나 전월 데이터를 가져오세요.`,'');
+  }
+}
+
+function renderSettingInputTable(machines, sections){
+  // 헤더
+  for(let i=0;i<3;i++){
+    const th=document.getElementById('sp-th'+(i+1));
+    if(th) th.textContent=machines[i]||'-';
+  }
+  const tbody=document.getElementById('sp-tbody');
+  if(!tbody) return;
+  let prev='';
+  tbody.innerHTML=SECTION_DEFS.map((s,idx)=>{
+    const isFirst=s.label!==prev; prev=s.label;
+    const span=SECTION_DEFS.filter(x=>x.label===s.label).length;
+    const lc=isFirst?`<td class="slabel" rowspan="${span}">${s.label}</td>`:'';
+    const vals=sections?sections[idx]?.values||[]:[]; 
+    const inputs=[0,1,2].map(ci=>`<td><input type="text" id="sp-v-${idx}-${ci}" value="${vals[ci]||''}" placeholder="-"/></td>`).join('');
+    return`<tr>${lc}<td class="ssub">${s.sub}</td>${inputs}</tr>`;
+  }).join('');
+}
+
+function copyPrevMonth(){
+  const m=document.getElementById('sp-month').value;
+  const mNum=parseInt(m);
+  if(mNum<=1){showLog('sp-log','1월은 전월 데이터가 없어요.','err');return;}
+  const prevM=(mNum-1)+'월';
+  const d=SETTING[prevM];
+  if(!d){showLog('sp-log',`${prevM} 데이터가 없어요.`,'err');return;}
+  document.getElementById('sp-machines').value=d.machines.join(', ');
+  renderSettingInputTable(d.machines, d.sections);
+  document.getElementById('sp-notes').value='';
+  showLog('sp-log',`${prevM} 데이터를 가져왔어요. 필요한 항목을 수정 후 저장하세요.`,'ok');
+}
+
+function saveSettingMonth(){
+  const m=document.getElementById('sp-month').value;
+  const machinesRaw=document.getElementById('sp-machines').value;
+  const machines=machinesRaw.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!machines.length){showLog('sp-log','설비 구성을 입력해주세요.','err');return;}
+
+  const sections=SECTION_DEFS.map((s,idx)=>{
+    const values=machines.map((_,ci)=>{
+      const el=document.getElementById(`sp-v-${idx}-${ci}`);
+      return el?el.value.trim():'-';
+    });
+    return{label:s.label, sub:s.sub, values};
+  });
+
+  const notesRaw=document.getElementById('sp-notes').value;
+  const notes=notesRaw.split('\n').map(s=>s.trim()).filter(Boolean);
+
+  SETTING[m]={machines, sections, notes};
+  if(!SETTING_MONTHS.includes(m)){
+    SETTING_MONTHS.push(m);
+    SETTING_MONTHS.sort((a,b)=>parseInt(a)-parseInt(b));
+    rebuildMonthButtons();
+  }
+  showLog('sp-log',`✓ ${m} 셋팅조건이 저장됐어요! 온도 셋팅조건 탭에서 확인하세요.`,'ok');
+}
+
+/* ── 변동점 패널 ── */
+function buildChangePanel(){
+  const dirOptions=['up','down','change'].map(d=>`<option value="${d}">${d==='up'?'▲ 상승':d==='down'?'▼ 하강':'🔧 교체/변경'}</option>`).join('');
+  const rows=CHANGES.map((c,i)=>`
+    <tr>
+      <td>${c.date}</td><td>${c.nearDate}</td>
+      <td><span class="change-tag ${c.dir}">${c.dir==='up'?'▲':c.dir==='down'?'▼':'🔧'} ${c.label}</span></td>
+      <td><button class="btn-sm edit" onclick="editChange(${i})">✏️</button> <button class="btn-sm del" onclick="delChange(${i})">🗑️</button></td>
+    </tr>`).join('');
+  return`
+    <div class="panel-card">
+      <div class="panel-header red">🔧 변동점 추가 / 수정</div>
+      <div class="panel-body">
+        <div class="form-row">
+          <label>변경일</label><input type="text" id="ch-date" placeholder="예: 07/28" style="width:100px;"/>
+          <label>표시일</label><input type="text" id="ch-near" placeholder="가장 가까운 측정일" style="width:120px;"/>
+        </div>
+        <div class="form-row">
+          <label>내용</label><input type="text" id="ch-label" placeholder="예: HAT#1 +10℃" style="width:220px;"/>
+          <label>방향</label><select id="ch-dir" style="width:130px;">${dirOptions}</select>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-gray" onclick="resetChangeForm()">초기화</button>
+          <button class="btn btn-red" onclick="saveChange()">✓ 저장</button>
+        </div>
+        <div class="log-box" id="ch-log">변동점을 입력하면 차트에 자동 반영돼요.</div>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-header blue">📋 변동점 목록</div>
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>변경일</th><th>표시일</th><th>내용</th><th>관리</th></tr></thead>
+          <tbody id="ch-tbody">${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+let chEditIdx=-1;
+function resetChangeForm(){
+  chEditIdx=-1;
+  ['ch-date','ch-near','ch-label'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  showLog('ch-log','초기화됐어요.');
+}
+function editChange(i){
+  chEditIdx=i;
+  const c=CHANGES[i];
+  document.getElementById('ch-date').value=c.date;
+  document.getElementById('ch-near').value=c.nearDate;
+  document.getElementById('ch-label').value=c.label;
+  document.getElementById('ch-dir').value=c.dir;
+  showLog('ch-log',`수정 모드: ${c.label}`,'');
+}
+function delChange(i){
+  if(!confirm(`"${CHANGES[i].label}" 변동점을 삭제할까요?`)) return;
+  CHANGES.splice(i,1);
+  buildManageView();
+}
+function saveChange(){
+  const date=(document.getElementById('ch-date')||{}).value?.trim();
+  const near=(document.getElementById('ch-near')||{}).value?.trim();
+  const label=(document.getElementById('ch-label')||{}).value?.trim();
+  const dir=(document.getElementById('ch-dir')||{}).value;
+  if(!date||!near||!label){showLog('ch-log','✗ 모든 항목을 입력해주세요.','err');return;}
+  if(chEditIdx>=0){
+    CHANGES[chEditIdx]={date,nearDate:near,label,dir};
+    showLog('ch-log',`✓ 변동점이 수정됐어요!`,'ok');
+    chEditIdx=-1;
+  } else {
+    CHANGES.push({date,nearDate:near,label,dir});
+    showLog('ch-log',`✓ 변동점이 추가됐어요! 차트에 자동 반영됩니다.`,'ok');
+  }
+  buildManageView();
+}
+
+/* ── 렌더링 ── */
+function rebuildMonthButtons(){
+  const container=document.getElementById('month-btns');
+  if(curType==='setting'){
+    container.innerHTML=`<button class="month-btn ${curMonth==='all'?'active-month setting':''}" onclick="setMonth('all',this)">전체 현황</button>`;
+    SETTING_MONTHS.forEach(m=>{
+      const b=document.createElement('button');
+      b.className='month-btn'+(m.replace('월','')===String(curMonth)||m===curMonth+'월'?' active-month setting':'');
+      b.textContent=m;b.onclick=function(){setMonth(m.replace('월',''),this);};container.appendChild(b);
+    });
+  } else if(curType==='manage'){
+    container.innerHTML='';
+  } else {
+    const months=[...new Set(ALL_MONTHS)].sort((a,b)=>a-b);
+    container.innerHTML=`<button class="month-btn ${curMonth==='all'?'active-month':''}" onclick="setMonth('all',this)">전체 현황</button>`;
+    months.forEach(m=>{
+      const b=document.createElement('button');
+      b.className='month-btn'+(String(m)===String(curMonth)?' active-month':'');
+      b.textContent=`${m}월`;b.onclick=function(){setMonth(String(m),this);};container.appendChild(b);
+    });
+  }
+}
+
+function render(){
+  if(curType==='manage'){
+    buildManageView();
+    return;
+  }
+  if(curType==='setting'){
+    const mn=curMonth==='all'?'전체 현황':curMonth+'월';
+    document.getElementById('tab-title').textContent=`온도 셋팅조건 — ${mn}`;
+    document.getElementById('date-badge').textContent='압출 공정 설비 조건';
+    buildSettingView(curMonth==='all'?'all':curMonth+'월');
+    return;
+  }
+  const tn=curType==='solid'?'솔리드부':'스펀지부';
+  const mn=curMonth==='all'?'전체 현황':curMonth+'월';
+  document.getElementById('tab-title').textContent=`${tn} 표면온도 — ${mn}`;
+  const{dates,data,count}=getFiltered(curType,curMonth);
+  const f=dates[0]||'',l=dates[dates.length-1]||'';
+  document.getElementById('date-badge').textContent=`${f} ~ ${l} (${count}회 측정)`;
+  buildStats(data);buildCharts(dates,data);
+}
+
+function setType(type,btn){
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active-type'));
+  btn.classList.add('active-type');curType=type;curMonth='all';rebuildMonthButtons();render();
+}
+function setMonth(month,btn){
+  document.querySelectorAll('.month-btn').forEach(b=>b.classList.remove('active-month','setting'));
+  btn.classList.add('active-month');if(curType==='setting')btn.classList.add('setting');
+  curMonth=month;render();
+}
+
+rebuildMonthButtons();render();
+</script>
+</body>
+</html>
